@@ -1,0 +1,27 @@
+{
+  "name": "alsm-backend",
+  "version": "1.0.2",
+  "description": "Authentik LDAP Sync Management UI - Backend API",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js --host",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "ldap": "^0.7.1",
+    "ldapts": "^4.2.6",
+    "node-fetch": "^3.3.2",
+    "pg": "^8.11.0",
+    "socket.io": "^4.6.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
