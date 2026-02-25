@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger.js'
+import { addLogToCache } from './logCache.js'
 
 export function setupWebSocket(io) {
   io.on('connection', (socket) => {
@@ -21,15 +22,21 @@ export function setupWebSocket(io) {
     })
   })
 
-    // Test broadcast every 5 seconds
+  // Heartbeat every 5 minutes
   setInterval(() => {
-    io.to('logs').emit('log', {
-      timestamp: new Date().toISOString(),
-      level: 'info',
-      message: 'Test log from interval',
-      context: { test: true }
-    })
-  }, 5000)
+    try {
+      const logEntry = {
+        timestamp: new Date().toISOString(),
+        level: 'info',
+        message: 'Service heartbeat',
+        context: { test: true }
+      }
+      addLogToCache(logEntry)
+      io.to('logs').emit('log', logEntry)
+    } catch (error) {
+      console.error('[websocket] Interval error:', error.message)
+    }
+  }, 300000) // 5 minutes
 
   return io
 }

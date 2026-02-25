@@ -46,13 +46,13 @@ class WebSocketService {
 
     const onConnect = () => {
       this.socket.emit('subscribe', { channel })
-      this.socket.on(channel, callback)
+      this.socket.on('log', callback)  // Listen for 'log' event (not channel name)
       this.socket.off('connect', onConnect)
     }
 
     if (this.socket.connected) {
       this.socket.emit('subscribe', { channel })
-      this.socket.on(channel, callback)
+      this.socket.on('log', callback)
     } else {
       this.socket.on('connect', onConnect)
     }
@@ -63,13 +63,13 @@ class WebSocketService {
 
     const onConnect = () => {
       this.socket.emit('unsubscribe', { channel })
-      if (callback) this.socket.off(channel, callback)
+      if (callback) this.socket.off('log', callback)
       this.socket.off('connect', onConnect)
     }
 
     if (this.socket.connected) {
       this.socket.emit('unsubscribe', { channel })
-      if (callback) this.socket.off(channel, callback)
+      if (callback) this.socket.off('log', callback)
     } else {
       this.socket.on('connect', onConnect)
     }

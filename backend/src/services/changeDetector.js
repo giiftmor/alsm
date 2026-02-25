@@ -1,5 +1,7 @@
 import pool from '../lib/db.js'
 import { logger } from '../utils/logger.js'
+import { ldapClient } from './ldapClient.js'
+import { authentikClient } from './authentikClient.js'
 
 /**
  * Change Detector Service
@@ -33,6 +35,32 @@ async function detectOrphanedUsers(authentikUsers, ldapUsers) {
   }
 
   return orphans
+}
+
+// ─── Detect Inactive Users (no password) ─────────────────────────────────────
+
+async function detectInactiveUsers(authentikUsers) {
+  const inactiveUsers = []
+
+  for (const user of authentikUsers) {
+    if (!user.password_change_date) {
+      inactiveUsers.push({
+        entity_type: 'user',
+        entity_id: user.username,
+        change_type: 'inactive_user',
+        field_name: 'password_change_date',
+        authentik_value: null,
+        ldap_value: null,
+        metadata: {
+          email: user.email,
+          name: user.name,
+          reason: 'No password set in Authentik',
+        }
+      })
+    }
+  }
+
+  return inactiveUsers
 }
 
 // ─── Detect Field Mismatches ──────────────────────────────────────────────────
@@ -186,16 +214,18 @@ export async function detectChanges(authentikUsers, ldapUsers) {
   try {
     logger.info('Starting change detection...')
 
-    const [orphans, mismatches] = await Promise.all([
+    const [orphans, mismatches, inactiveUsers] = await Promise.all([
       detectOrphanedUsers(authentikUsers, ldapUsers),
       detectFieldMismatches(authentikUsers, ldapUsers),
+      detectInactiveUsers(authentikUsers),
     ])
 
-    const allChanges = [...orphans, ...mismatches]
+    const allChanges = [...orphans, ...mismatches, ...inactiveUsers]
 
     logger.info('Change detection complete', {
       orphans: orphans.length,
       mismatches: mismatches.length,
+      inactive: inactiveUsers.length,
       total: allChanges.length
     })
 
@@ -205,6 +235,7 @@ export async function detectChanges(authentikUsers, ldapUsers) {
     return {
       orphans: orphans.length,
       mismatches: mismatches.length,
+      inactive: inactiveUsers.length,
       total: allChanges.length
     }
 
@@ -344,6 +375,75 @@ export async function updateChangeStatus(changeId, status, approvedBy = null) {
     return result.rows[0]
   } catch (error) {
     logger.error('Failed to update change status', { error: error.message })
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+// ─── Apply Change (Revert LDAP to match Authentik) ─────────────────────────────────
+
+export async function applyChange(changeId) {
+  const client = await pool.connect()
+  
+  try {
+    const result = await client.query('SELECT * FROM changes WHERE id = $1', [changeId])
+    
+    if (result.rows.length === 0) {
+      throw new Error(`Change ${changeId} not found`)
+    }
+    
+    const change = result.rows[0]
+    const { change_type, entity_id, field_name, authentik_value } = change
+    
+    logger.info('Applying change', { changeId, change_type, entity_id, field_name })
+    
+    switch (change_type) {
+      case 'field_mismatch': {
+        if (!field_name || !authentik_value) {
+          throw new Error('Missing field_name or authentik_value for field_mismatch')
+        }
+        
+        const ldapFieldMap = {
+          email: 'mail',
+          name: 'cn',
+          sn: 'sn',
+        }
+        
+        const ldapField = ldapFieldMap[field_name] || field_name
+        
+        await ldapClient.updateUser(entity_id, {
+          [ldapField]: authentik_value,
+        })
+        
+        logger.info(`Applied field mismatch fix for ${entity_id}.${field_name} = ${authentik_value}`)
+        break
+      }
+      
+      case 'orphan': {
+        await ldapClient.deleteUser(entity_id)
+        logger.info(`Deleted orphan LDAP user: ${entity_id}`)
+        break
+      }
+      
+      case 'inactive_user': {
+        logger.info(`Inactive user ${entity_id} - no action needed (already not synced)`)
+        break
+      }
+      
+      default:
+        logger.warn(`Unknown change type: ${change_type}`)
+    }
+    
+    await client.query(
+      'UPDATE changes SET status = $1, applied_at = CURRENT_TIMESTAMP WHERE id = $2',
+      ['applied', changeId]
+    )
+    
+    return { success: true, message: 'Change applied successfully' }
+    
+  } catch (error) {
+    logger.error('Failed to apply change', { changeId, error: error.message })
     throw error
   } finally {
     client.release()

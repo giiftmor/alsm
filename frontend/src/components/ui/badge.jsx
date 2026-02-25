@@ -9,6 +9,7 @@ export function Badge({ className, variant = 'default', ...props }) {
     success: 'bg-green-500 text-white hover:bg-green-600',
     warning: 'bg-yellow-500 text-white hover:bg-yellow-600',
     error: 'bg-red-500 text-white hover:bg-red-600',
+    info: 'bg-blue-500 text-white hover:bg-blue-600',
   }
 
   return (

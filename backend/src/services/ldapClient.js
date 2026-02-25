@@ -1,4 +1,4 @@
-import { Client } from 'ldapts'
+import { Client, Attribute, Change } from 'ldapts'
 import { logger } from '../utils/logger.js'
 
 export class LDAPClient {
@@ -32,6 +32,30 @@ export class LDAPClient {
       this.client = null
       this.isConnected = false
       logger.info('Disconnected from LDAP server')
+    }
+  }
+
+  async setUserPassword(username, newPassword) {
+    await this.connect()
+    
+    try {
+      const userDN = `uid=${username},ou=people,${this.baseDN}`
+      
+      await this.client.modify(userDN, [
+        new Change({
+          operation: 'replace',
+          modification: new Attribute({
+            type: 'userPassword',
+            values: [newPassword],
+          }),
+        }),
+      ])
+      
+      logger.info(`Password set for LDAP user: ${username}`)
+      return true
+    } catch (error) {
+      logger.error(`Failed to set LDAP password for ${username}:`, error.message)
+      return false
     }
   }
 
@@ -91,6 +115,42 @@ export class LDAPClient {
       return entries[0] || null
     } catch (error) {
       logger.error(`Failed to get LDAP group ${cn}:`, error)
+      throw error
+    }
+  }
+
+  async updateUser(uid, attributes) {
+    await this.connect()
+    
+    const dn = `uid=${uid},ou=people,${this.baseDN}`
+    
+    try {
+      await this.client.modify(dn, [
+        new Change({
+          operation: 'replace',
+          modification: new Attribute({
+            type: Object.keys(attributes)[0],
+            values: [Object.values(attributes)[0]],
+          }),
+        }),
+      ])
+      logger.info(`Updated LDAP user ${uid}`, { attributes })
+    } catch (error) {
+      logger.error(`Failed to update LDAP user ${uid}:`, error)
+      throw error
+    }
+  }
+
+  async deleteUser(uid) {
+    await this.connect()
+    
+    const dn = `uid=${uid},ou=people,${this.baseDN}`
+    
+    try {
+      await this.client.del(dn)
+      logger.info(`Deleted LDAP user ${uid}`)
+    } catch (error) {
+      logger.error(`Failed to delete LDAP user ${uid}:`, error)
       throw error
     }
   }

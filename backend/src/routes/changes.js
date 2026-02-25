@@ -1,5 +1,5 @@
 import express from 'express'
-import { getChanges, getPendingChanges, getChangeById, updateChangeStatus } from '../services/changeDetector.js'
+import { getChanges, getPendingChanges, getChangeById, updateChangeStatus, applyChange } from '../services/changeDetector.js'
 import { logger } from '../utils/logger.js'
 
 export const changesRouter = express.Router()
@@ -58,13 +58,22 @@ changesRouter.post('/:id/approve', async (req, res) => {
     // Update status to approved
     const change = await updateChangeStatus(changeId, 'approved', approved_by || 'system')
 
-    // TODO: Apply the change (revert LDAP to match Authentik)
-    // This will be implemented in the next step
+    // Apply the change (revert LDAP to match Authentik)
+    try {
+      await applyChange(changeId)
+      logger.info('Change approved and applied', { changeId })
+    } catch (applyError) {
+      logger.error('Failed to apply change', { changeId, error: applyError.message })
+      return res.status(500).json({
+        success: false,
+        error: 'Change approved but failed to apply: ' + applyError.message
+      })
+    }
 
     res.json({
       success: true,
       change,
-      message: 'Change approved and queued for application'
+      message: 'Change approved and applied'
     })
   } catch (error) {
     logger.error('Error approving change:', error)

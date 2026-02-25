@@ -1,15 +1,25 @@
 # Technical Architecture - Authentik LDAP Sync Management UI
 
 ## Document Information
-- **Version**: 2.0.0 (Updated)
-- **Date**: February 19, 2026
+- **Version**: 2.1.0 (Updated)
+- **Date**: February 25, 2026
 - **Status**: Production
 - **Owner**: Technical Team
-- **Previous Version**: 1.0.0 (February 16, 2026)
+- **Previous Version**: 2.0.0 (February 19, 2026)
 
 ---
 
 ## Change Log
+
+### Version 2.1.0 - February 25, 2026
+- Added password sync: ALSM → LDAP + Authentik
+- Added approval workflow UI (/changes page)
+- Added log caching system (data/log-cache.json)
+- Added WebSocket real-time updates
+- Added heartbeat system (5-minute interval)
+- Fixed group sync issues
+- Fixed "All" filter in User Browser
+- Fixed WebSocket log streaming
 
 ### Version 2.0.0 - February 19, 2026
 - **BREAKING:** Integrated sync service into backend (no longer separate Docker)
@@ -33,6 +43,9 @@
 6. [Security Architecture](#security-architecture)
 7. [Integration Patterns](#integration-patterns)
 8. [Performance Considerations](#performance-considerations)
+9. [Password Sync System](#password-sync-system)
+10. [Approval Workflow](#approval-workflow)
+11. [Log Caching](#log-caching)
 
 ---
 
@@ -721,6 +734,92 @@ const throttledEmit = throttle((log) => {
   io.to('logs').emit('log', log)
 }, 100) // Max 10/second
 ```
+
+---
+
+## Password Sync System
+
+### Overview
+ALSM acts as the central password management hub, syncing passwords to both LDAP and Authentik.
+
+### Architecture
+```
+User (Jellyfin/Grafana/etc)
+        ↓ Password Change
+ALSM Backend (/api/password/sync/:username)
+        ↓
+   ┌────┴────┐
+   ▼         ▼
+LDAP     Authentik
+Server    API
+```
+
+### API Endpoint
+```
+POST /api/password/sync/:username
+Body: { "password": "plaintext_password" }
+```
+
+### Features
+- Syncs to LDAP (via ldapts)
+- Syncs to Authentik (via set_password API)
+- Logs all operations to log cache
+- Service account authentication via Bearer token
+
+### Security
+- Requires Authentik service account with password permissions
+- Service account should be in ALSM Service group (child of Admin)
+- Rate limiting recommended for production
+
+---
+
+## Approval Workflow
+
+### Overview
+Change detection engine detects drift between Authentik and LDAP, with UI for reviewing and approving changes.
+
+### Change Types
+- **Orphan**: User exists in LDAP but not in Authentik
+- **Field Mismatch**: Email/name differs between systems
+- **Inactive User**: User has no password in Authentik
+
+### Workflow
+1. Sync cycle runs → detects changes
+2. Changes stored in PostgreSQL with `pending` status
+3. Admin reviews in `/changes` UI
+4. Admin clicks Approve → LDAP updated to match Authentik
+5. OR Admin clicks Reject → no changes made
+
+### Database Table
+```sql
+changes (
+  id, entity_type, entity_id, change_type, field_name,
+  authentik_value, ldap_value, status, detected_at,
+  approved_by, approved_at, applied_at, metadata
+)
+```
+
+---
+
+## Log Caching
+
+### Overview
+Logs are cached to JSON file for fast retrieval and search capability.
+
+### Implementation
+- **Cache File**: `data/log-cache.json`
+- **Max Logs**: 1000 entries
+- **Write**: On every log event + WebSocket broadcast
+- **Read**: API on page load for fast initial display
+
+### API Endpoints
+```
+GET /api/logs?level=info&search=term&limit=500
+```
+
+### WebSocket
+- Real-time log streaming via `logs` channel
+- Heartbeat every 5 minutes
 
 ---
 

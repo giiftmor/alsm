@@ -126,6 +126,28 @@ class ApiClient {
       body: JSON.stringify({ reason }),
     })
   }
+
+  // Logs endpoints
+  async getLogs(params = {}) {
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '')
+    )
+    const query = new URLSearchParams(cleanParams).toString()
+    return this.request(`/logs${query ? `?${query}` : ''}`)
+  }
+
+  // Audit endpoints
+  async getAuditLogs(params = {}) {
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '')
+    )
+    const query = new URLSearchParams(cleanParams).toString()
+    return this.request(`/audit${query ? `?${query}` : ''}`)
+  }
+
+  async getAuditStats() {
+    return this.request('/audit/stats')
+  }
 }
 
 export const apiClient = new ApiClient()

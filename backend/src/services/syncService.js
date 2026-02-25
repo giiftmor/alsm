@@ -2,6 +2,7 @@ import { Client, Attribute, Change } from 'ldapts'
 import { logger } from '../utils/logger.js'
 import { MailserverIntegration } from './mailserver.js'
 import { detectChanges } from './changeDetector.js'
+import { addLogToCache } from './logCache.js'
 
 // Sync state - shared across the app
 const syncState = {
@@ -60,13 +61,19 @@ function getConfig() {
 function broadcastLog(io, level, message, context = {}) {
   logger[level](message, context)
   
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+    context,
+  }
+  
+  // Write to cache file
+  addLogToCache(logEntry)
+  
+  // Broadcast to WebSocket
   if (io) {
-    io.to('logs').emit('log', {
-      timestamp: new Date().toISOString(),
-      level,
-      message,
-      context,
-    })
+    io.to('logs').emit('log', logEntry)
   }
 }
 
@@ -278,7 +285,7 @@ async function runSyncCycle(io) {
   try {
     // Reconnect if needed
     if (!syncState.isConnected || !syncState.ldapClient) {
-      await connectLDAP(config)
+    await connectLDAP(config, io)
     }
 
     const client = syncState.ldapClient
@@ -298,6 +305,12 @@ async function runSyncCycle(io) {
     if (config.sync.createUsers || config.sync.updateUsers) {
       for (const authentikUser of authentikUsers) {
         try {
+          // Skip users without passwords (inactive)
+          if (!authentikUser.password_change_date) {
+            broadcastLog(io, 'info', `Skipping user without password: ${authentikUser.username}`)
+            continue
+          }
+
           const ldapUser = ldapUserMap.get(authentikUser.username)
 
           if (!ldapUser && config.sync.createUsers) {
@@ -360,6 +373,8 @@ async function runSyncCycle(io) {
         
         // Broadcast to UI
         if (io) io.to('changes').emit('changes-detected', changeResults)
+      } else {
+        broadcastLog(io, 'info',  'No new changes detected. LDAP is in sync with Authentik.')
       }
     } catch (detectError) {
       broadcastLog(io, 'error',  'Change detection failed', { error: detectError.message })

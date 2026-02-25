@@ -34,7 +34,7 @@ The Authentik LDAP Sync Management UI (ALSM-UI) has successfully completed Phase
 ### Current Focus
 - 🔄 Password validation detection
 - 🔄 Change approval workflow UI
-- 🔄 WebSocket real-time log streaming (debugging in progress)
+- ✅ WebSocket real-time log streaming (FIXED)
 
 ---
 
@@ -348,28 +348,26 @@ When admin approves a change:
 
 ### Critical Issues
 
-**1. WebSocket Log Streaming Not Working**
-- **Impact:** High - Logs not visible in UI
-- **Status:** Debugging in progress
-- **Root Cause:** Unknown (subscription works, emission unclear)
-- **Next Steps:** Add test intervals to verify emission path
-
-**2. "All" Filter in User Browser**
-- **Impact:** Medium - Users can't view all users at once
-- **Status:** Fix identified, not applied
-- **Fix:** One-line change in `users.js`
-
-**3. Group Sync Failing**
-- **Impact:** Low - User sync works, groups fail
-- **Error:** `change.write is not a function`
-- **Cause:** ldapts modify syntax incompatibility
-- **Status:** Deferred (groups not critical yet)
+All critical issues from Phase 1 have been resolved:
+- ✅ "All" Filter in User Browser - Fixed
+- ✅ Group Sync Failing - Fixed  
+- ✅ WebSocket Log Streaming - Fixed (event name mismatch + missing io param)
 
 ### Technical Debt
 
-**1. Auto-refresh Disabled**
+**1. Console Logger Timezone Offset (Low Priority)**
+- **Issue:** Offset calculation produces incorrect timezone display (e.g., `+00:0.012...`)
+- **Expected:** `2026-02-24T14:03:12.965+02:00`
+- **Actual:** `2026-02-24T19:29:31.760+00:0.012...`
+- **Priority:** Low
+- **Effort:** 1 hour
+
+**2. ~~Dashboard Activity - No Changes Message~~** ✅ Resolved
+- Returns "No new changes. Sync is up to date." when activity unchanged
+
+**3. ~~Fix Group Sync~~** - ✅ Fixed
 - **Reason:** Polling causes janky UI
-- **Solution:** Replace with WebSocket live updates
+- **Solution:** Replace with WebSocket live updates (now working!)
 - **Priority:** Medium
 - **Effort:** 2-3 hours
 
@@ -453,11 +451,7 @@ When admin approves a change:
 
 ### Still Debugging 🔧
 
-1. **WebSocket Log Emission**
-   - WebSocket connects
-   - Subscription works
-   - Logs not appearing
-   - Need to trace emission path
+All issues from Phase 1 are now resolved!
 
 ---
 
@@ -465,35 +459,98 @@ When admin approves a change:
 
 ### Immediate (This Week)
 
-1. **Fix WebSocket Logs** (Priority: High)
-   - Add test emission intervals
-   - Verify `io.to('logs').emit()` works
-   - Debug frontend reception
-   - Target: 2 hours
-
-2. **Fix "All" Filter** (Priority: High)
-   - One-line change in users.js
-   - Target: 5 minutes
-
-3. **Password Validation** (Priority: Medium)
-   - Implement `password_change_date` check
-   - Add inactive user detection
-   - Create UI badge
-   - Target: 3 hours
+1. ~~**Fix WebSocket Logs**~~ ✅ DONE
+2. ~~**Fix "All" Filter"~~ ✅ DONE (was already resolved)
+3. ~~**Password Validation**~~ ✅ DONE
+   - Skip LDAP sync for passwordless users
+   - Track inactive users in changes table
+   - Add UI badge for inactive users
+   - Add "Inactive" filter in User Browser
 
 ### Short Term (Next Sprint)
 
-4. **Approval Queue UI** (Priority: High)
-   - Create `/changes` page
-   - List pending changes
-   - Approve/reject buttons
-   - Target: 1 day
+4. ~~**Approval Queue UI**~~ ✅ DONE
+   - Created `/changes` page
+   - Lists pending changes with stats
+   - Approve/reject buttons working
+   - Real-time updates via WebSocket
 
-5. **Apply Changes Logic** (Priority: High)
+5. ~~**Apply Changes Logic**~~ ✅ DONE
    - Implement LDAP revert on approval
-   - Audit logging
-   - Version snapshots
-   - Target: 1 day
+
+6. **Password Sync** (Priority: High)
+   - ✅ DONE: Sync password to LDAP + Authentik via API
+   - Endpoint: POST /api/password/sync/:username
+   - Used for: Unified password management
+
+---
+
+## 🔮 Future Features: IDM Profile System
+
+### Vision
+ALSM becomes the central **Identity Management (IDM) hub** for password and security management.
+
+### Features Planned
+
+#### 1. Password Management Center
+- Dedicated `/profile` page for password management
+- Password creation/reset from ALSM
+- Auto-sync to LDAP + Authentik
+- Password history tracking
+- Strength validation
+
+#### 2. Security Policies
+- Password complexity requirements
+- Password expiration policies
+- MFA enforcement rules
+- Account lockout policies
+
+#### 3. User Profile & Diagnostics
+- User activity timeline
+- Login history
+- Password change history
+- Security status (MFA enabled, last login, etc.)
+- Account health diagnostics
+
+#### 4. MFA Integration
+- TOTP setup/status
+- WebAuthn devices
+- Duo integration
+- Backup codes management
+
+### Technical Implementation
+
+**Frontend:**
+- New `/profile` route
+- Password change form
+- Security dashboard
+- MFA management UI
+
+**Backend:**
+- `/api/profile/:username` endpoints
+- Password policy validation
+- MFA token management
+- Audit logging
+
+### Security Hardening (Required Before Production)
+
+1. **Service Account Group Hierarchy**
+   - Create `ALSM Service` group as child of `authentik Admins`
+   - Assign `ldap_api` service account to this group
+   - Benefits: inherits admin rights but can be limited later
+
+2. **Authentication** - Require API key or JWT for password endpoints
+3. **Rate Limiting** - Prevent brute force attacks
+4. **Audit Logging** - Log all password changes
+4. **Validation** - Validate password strength
+5. **HTTPS Only** - Enforce TLS
+6. **IP Whitelist** - Restrict access to known IPs
+
+### Priority: Medium-High
+**Effort:** 2-3 weeks
+   - For field_mismatch: updates LDAP to match Authentik
+   - For orphan: deletes LDAP user
+   - Status updates to 'applied'
 
 6. **Fix Group Sync** (Priority: Low)
    - Debug ldapts modify syntax
@@ -502,17 +559,16 @@ When admin approves a change:
 
 ### Medium Term (Phase 3)
 
-7. **WebSocket Live Updates**
+7. ~~**WebSocket Live Updates**~~ ✅ DONE
    - Replace auto-refresh with WebSocket
    - Dashboard live stats
    - Real-time user updates
-   - Target: 1 day
 
-8. **Audit Trail Viewer**
-   - New UI page for audit logs
-   - Search and filter
-   - Export capability
-   - Target: 1 day
+8. ~~**Audit Trail Viewer**~~ ✅ DONE
+   - Created /audit page
+   - Shows system events (password sync, etc.)
+   - Stats cards and filtering
+   - Logs to audit_log table
 
 ### Long Term (Phase 4)
 

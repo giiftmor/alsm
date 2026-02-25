@@ -7,7 +7,11 @@ import {
   Settings, 
   Menu,
   X,
-  Activity
+  Activity,
+  Sun,
+  Moon,
+  ClipboardList,
+  Shield
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/store/useAppStore'
@@ -17,12 +21,14 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Users', href: '/users', icon: Users },
   { name: 'Groups', href: '/groups', icon: UserCog },
+  { name: 'Changes', href: '/changes', icon: ClipboardList },
+  { name: 'Audit', href: '/audit', icon: Shield },
   { name: 'Logs', href: '/logs', icon: FileText },
   { name: 'Schema Mapper', href: '/schema', icon: Settings },
 ]
 
 export function Layout() {
-  const { sidebarOpen, toggleSidebar } = useAppStore()
+  const { sidebarOpen, toggleSidebar, theme, toggleTheme } = useAppStore()
   const location = useLocation()
 
   return (
@@ -113,7 +119,19 @@ export function Layout() {
 
           <div className="flex-1" />
 
-          {/* Right side items can go here */}
+          {/* Theme Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="mr-2"
+          >
+            {theme === 'dark' ? (
+              <Sun className="h-5 w-5" />
+            ) : (
+              <Moon className="h-5 w-5" />
+            )}
+          </Button>
         </header>
 
         {/* Page Content */}

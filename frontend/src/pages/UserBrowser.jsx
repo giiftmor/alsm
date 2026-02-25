@@ -27,7 +27,11 @@ export function UserBrowser() {
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.name?.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const matchesStatus = filterStatus === 'all' || user.syncStatus === filterStatus
+    let matchesStatus = filterStatus === 'all' || user.syncStatus === filterStatus
+    
+    if (filterStatus === 'inactive') {
+      matchesStatus = !user.hasPassword
+    }
 
     return matchesSearch && matchesStatus
   })
@@ -79,6 +83,12 @@ export function UserBrowser() {
                 onClick={() => setFilterStatus('pending')}
               >
                 Pending
+              </FilterButton>
+              <FilterButton
+                active={filterStatus === 'inactive'}
+                onClick={() => setFilterStatus('inactive')}
+              >
+                Inactive
               </FilterButton>
             </div>
           </div>
@@ -202,9 +212,21 @@ function UserListItem({ user, selected, onClick }) {
             </div>
           )}
         </div>
-        <Badge variant={getStatusVariant(user.syncStatus)} className="shrink-0">
-          {user.syncStatus}
-        </Badge>
+        <div className="flex items-center gap-2 shrink-0">
+          {!user.hasPassword && user.isActive && (
+            <Badge variant="warning" title="No password set">
+              Active - No Password
+            </Badge>
+          )}
+          {!user.hasPassword && !user.isActive && (
+            <Badge variant="secondary" title="Inactive user">
+              Inactive
+            </Badge>
+          )}
+          <Badge variant={getStatusVariant(user.syncStatus)}>
+            {user.syncStatus}
+          </Badge>
+        </div>
       </div>
       {user.error && (
         <div className="mt-2 text-xs text-red-600 dark:text-red-400 truncate">

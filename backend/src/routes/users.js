@@ -31,13 +31,17 @@ usersRouter.get('/', async (req, res) => {
         syncStatus = matches ? 'synced' : 'pending'
       }
       
+      const hasPassword = !!aUser.password_change_date
+      
       return {
         id: aUser.pk,
         username: aUser.username,
         email: aUser.email,
         name: aUser.name,
+        isActive: aUser.is_active,
         syncStatus,
         error,
+        hasPassword,
         lastSynced: lUser ? new Date().toISOString() : null,
       }
     })

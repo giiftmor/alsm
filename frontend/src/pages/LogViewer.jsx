@@ -1,53 +1,74 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Filter, Download, Trash2, Search } from 'lucide-react'
+import { Filter, Download, Trash2, Search, RefreshCw } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAppStore } from '@/store/useAppStore'
 import { wsService } from '@/services/websocket'
-import { format } from 'date-fns'
+import { apiClient } from '@/services/api'
+import { getTimezone } from '@/utils/timezone'
 
 export function LogViewer() {
   const { logs, addLog, clearLogs, logFilters, setLogFilters } = useAppStore()
   const [searchTerm, setSearchTerm] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
 
+  // Fetch logs from API on mount
   useEffect(() => {
-    // Subscribe to real-time logs
-    wsService.subscribeLogs((log) => {
+    const fetchLogs = async () => {
+      setIsLoading(true)
+      try {
+        const cachedLogs = await apiClient.getLogs({ limit: 500 })
+        cachedLogs.forEach(log => addLog(log))
+      } catch (error) {
+        console.error('Failed to fetch logs:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    fetchLogs()
+  }, [addLog])
+
+  // Subscribe to real-time logs
+  useEffect(() => {
+    const unsubscribe = wsService.subscribeLogs((log) => {
       addLog(log)
     }, logFilters)
 
     return () => {
-      wsService.unsubscribe('logs')
+      unsubscribe?.()
     }
   }, [addLog, logFilters])
 
   const filteredLogs = useMemo(() => {
-    return logs.filter(log => {
-      // Filter by level
-      if (logFilters.level !== 'all' && log.level !== logFilters.level) {
-        return false
-      }
-
-      // Filter by search term
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase()
-        const messageMatch = log.message.toLowerCase().includes(searchLower)
-        const contextMatch = log.context && 
-          JSON.stringify(log.context).toLowerCase().includes(searchLower)
-        if (!messageMatch && !contextMatch) {
+    return logs
+      .filter(log => {
+        // Filter by level
+        if (logFilters.level !== 'all' && log.level !== logFilters.level) {
           return false
         }
-      }
 
-      return true
-    })
+        // Filter by search term
+        if (searchTerm) {
+          const searchLower = searchTerm.toLowerCase()
+          const messageMatch = log.message.toLowerCase().includes(searchLower)
+          const contextMatch = log.context && 
+            JSON.stringify(log.context).toLowerCase().includes(searchLower)
+          if (!messageMatch && !contextMatch) {
+            return false
+          }
+        }
+
+        return true
+      })
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)) // Newest first
   }, [logs, logFilters, searchTerm])
 
   const handleExport = () => {
     const logText = filteredLogs
-      .map(log => `[${format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss')}] [${log.level.toUpperCase()}] ${log.message}`)
+      .map(log => `[${new Date(log.timestamp).toLocaleString('en-US', { timeZone: getTimezone() })}] [${log.level.toUpperCase()}] ${log.message}`)
       .join('\n')
     
     const blob = new Blob([logText], { type: 'text/plain' })
@@ -135,6 +156,26 @@ export function LogViewer() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={async () => {
+                  clearLogs()
+                  setIsLoading(true)
+                  try {
+                    const cachedLogs = await apiClient.getLogs({ limit: 500 })
+                    cachedLogs.forEach(log => addLog(log))
+                  } catch (error) {
+                    console.error('Failed to fetch logs:', error)
+                  } finally {
+                    setIsLoading(false)
+                  }
+                }}
+                disabled={isLoading}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleExport}
                 disabled={filteredLogs.length === 0}
               >
@@ -163,7 +204,11 @@ export function LogViewer() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {filteredLogs.length > 0 ? (
+          {isLoading ? (
+            <div className="text-center py-12 text-muted-foreground">
+              Loading logs...
+            </div>
+          ) : filteredLogs.length > 0 ? (
             <div className="space-y-1 max-h-[600px] overflow-y-auto font-mono text-sm">
               {filteredLogs.map((log, index) => (
                 <LogEntry key={`${log.timestamp}-${index}`} log={log} />
@@ -245,7 +290,7 @@ function LogEntry({ log }) {
       <div className="flex items-start gap-3">
         {/* Timestamp */}
         <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {format(new Date(log.timestamp), 'HH:mm:ss')}
+          {new Date(log.timestamp).toLocaleTimeString('en-US', { timeZone: getTimezone(), hour: '2-digit', minute: '2-digit', second: '2-digit' })}
         </span>
 
         {/* Level Badge */}

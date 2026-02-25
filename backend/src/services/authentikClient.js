@@ -35,6 +35,10 @@ export class AuthentikClient {
         throw new Error(error.message || `Authentik API error: ${response.status}`)
       }
 
+      if (response.status === 204) {
+        return { success: true } // No content response
+      }
+
       return await response.json()
     } catch (error) {
       logger.error('Authentik API error:', error)
@@ -70,6 +74,18 @@ export class AuthentikClient {
       method: 'PATCH',
       body: JSON.stringify(updates),
     })
+  }
+
+  async setPassword(userId, password) {
+    return this.request(`/api/v3/core/users/${userId}/set_password/`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    })
+  }
+
+  async getUserByUsername(username) {
+    const users = await this.getUsers({ search: username })
+    return users.find(u => u.username === username) || null
   }
 
   async deleteUser(userId) {

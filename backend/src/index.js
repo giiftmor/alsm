@@ -15,7 +15,12 @@ import { groupsRouter } from './routes/groups.js'
 import { schemaRouter } from './routes/schema.js'
 import { changesRouter } from './routes/changes.js'
 import { syncRouter } from './routes/sync.js'
+import { logsRouter } from './routes/logs.js'
+import { passwordRouter } from './routes/password.js'
+import { auditRouter } from './routes/audit.js'
+import { testRouter } from './routes/test.js'
 import { setupWebSocket } from './services/websocket.js'
+import { addLogToCache } from './services/logCache.js'
 import { startSyncService, stopSyncService } from './services/syncService.js'
 import { logger } from './utils/logger.js'
 
@@ -66,6 +71,10 @@ app.use('/api/groups', groupsRouter)
 app.use('/api/schema', schemaRouter)
 app.use('/api/changes', changesRouter)
 app.use('/api/sync', syncRouter)
+app.use('/api/logs', logsRouter)
+app.use('/api/password', passwordRouter)
+app.use('/api/audit', auditRouter)
+app.use('/api/test', testRouter)
 
 
 // WebSocket setup
@@ -85,6 +94,17 @@ const PORT = process.env.PORT || 3333
 httpServer.listen(PORT, '0.0.0.0', async () => {
   logger.info(`Server running on port ${PORT}`)
   logger.info(`WebSocket server ready`)
+  
+  try {
+    addLogToCache({
+      timestamp: new Date().toISOString(),
+      level: 'info',
+      message: `ALSM UI Backend started on port ${PORT}`,
+      context: { service: 'startup' }
+    })
+  } catch (error) {
+    console.error('[startup] Failed to write startup log:', error.message)
+  }
 
   // Start sync service after server is up
   await startSyncService(io)

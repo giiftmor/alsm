@@ -2,23 +2,27 @@ import express from 'express'
 import { authentikClient } from '../services/authentikClient.js'
 import { ldapClient } from '../services/ldapClient.js'
 import { getSyncState } from '../services/syncService.js'
+import { getChanges } from '../services/changeDetector.js'
 import { logger } from '../utils/logger.js'
 
 export const dashboardRouter = express.Router()
+
+let lastActivityCache = null
 
 dashboardRouter.get('/stats', async (req, res) => {
   try {
     const syncState = getSyncState()
 
-    const [authentikUsers, ldapUsers] = await Promise.all([
+    const [authentikUsers, ldapUsers, pendingChanges] = await Promise.all([
       authentikClient.getUsers(),
       ldapClient.getUsers(),
+      getChanges({ status: 'pending', limit: 1000 }),
     ])
 
     res.json({
       authentikUsers: authentikUsers.length,
       ldapUsers: ldapUsers.length,
-      pendingChanges: 0,
+      pendingChanges: pendingChanges.length,
       failedSyncs: syncState.recentErrors.length,
       lastSyncTime: syncState.lastSyncTime,
       lastSyncDuration: syncState.lastSyncDuration,
@@ -41,6 +45,19 @@ dashboardRouter.get('/activity', async (req, res) => {
     details: h,
   }))
 
+  // Compare with last result
+  const currentStr = JSON.stringify(activity)
+  if (lastActivityCache && lastActivityCache === currentStr) {
+    // Return "no new changes" message
+    return res.json([{
+      action: 'info',
+      message: 'No new changes. Sync is up to date.',
+      timestamp: new Date().toISOString(),
+      details: null,
+    }])
+  }
+
+  lastActivityCache = currentStr
   res.json(activity)
 })
 
@@ -60,6 +77,7 @@ dashboardRouter.get('/health', async (req, res) => {
         ldap: 'up',
         sync: syncState.status,
       },
+      timezone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     })
   } catch (error) {
     res.status(503).json({

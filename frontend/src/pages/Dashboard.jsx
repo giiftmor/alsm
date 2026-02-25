@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { Activity, Users, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { apiClient } from '@/services/api'
 import { useAppStore } from '@/store/useAppStore'
 import { useEffect } from 'react'
@@ -51,7 +53,7 @@ export function Dashboard() {
 
   const getStatusVariant = (status) => {
     switch (status) {
-      case 'healthy':
+      case 'success':
         return 'success'
       case 'warning':
         return 'warning'
@@ -64,7 +66,7 @@ export function Dashboard() {
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'healthy':
+      case 'success':
         return <CheckCircle2 className="h-5 w-5" />
       case 'warning':
         return <AlertCircle className="h-5 w-5" />
@@ -127,6 +129,15 @@ export function Dashboard() {
           icon={<Clock className="h-4 w-4 text-muted-foreground" />}
           description="Awaiting approval"
           variant={stats?.pendingChanges > 0 ? 'warning' : 'default'}
+          action={
+            stats?.pendingChanges > 0 ? (
+              <Link to="/changes">
+                <Button size="sm" variant="outline" className="mt-2">
+                  View
+                </Button>
+              </Link>
+            ) : null
+          }
         />
         <StatsCard
           title="Failed Syncs"
@@ -163,7 +174,7 @@ export function Dashboard() {
   )
 }
 
-function StatsCard({ title, value, icon, description, variant = 'default' }) {
+function StatsCard({ title, value, icon, description, variant = 'default', action }) {
   const variantStyles = {
     default: '',
     warning: 'border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20',
@@ -179,6 +190,7 @@ function StatsCard({ title, value, icon, description, variant = 'default' }) {
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
         <p className="text-xs text-muted-foreground mt-1">{description}</p>
+        {action}
       </CardContent>
     </Card>
   )
@@ -187,10 +199,10 @@ function StatsCard({ title, value, icon, description, variant = 'default' }) {
 function ActivityItem({ item }) {
   const getActionColor = (action) => {
     switch (action) {
-      case 'created':
+      case 'success':
         return 'success'
-      case 'updated':
-        return 'secondary'
+      case 'info':
+        return 'info'
       case 'deleted':
         return 'error'
       case 'failed':
