@@ -61,6 +61,10 @@ class ApiClient {
     return this.request(`/users/${userId}/test-mapping`, { method: 'POST' })
   }
 
+  async getUserDetail(username) {
+    return this.request(`/users/${username}/detail`)
+  }
+
   // Group endpoints
   async getGroups(params = {}) {
     const cleanParams = Object.fromEntries(
@@ -147,6 +151,65 @@ class ApiClient {
 
   async getAuditStats() {
     return this.request('/audit/stats')
+  }
+
+  // Password management endpoints
+  async syncPassword(username, password, expirationDays = undefined) {
+    return this.request(`/password/sync/${username}`, {
+      method: 'POST',
+      body: JSON.stringify({ password, expirationDays }),
+    })
+  }
+
+  async validatePassword(password) {
+    return this.request('/password/validate', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    })
+  }
+
+  async getPasswordPolicy() {
+    return this.request('/password/policy')
+  }
+
+  async getPasswordHistory(username) {
+    return this.request(`/password/history/${username}`)
+  }
+
+  async changePassword(username, currentPassword, newPassword) {
+    return this.request('/password/change', {
+      method: 'POST',
+      body: JSON.stringify({ username, currentPassword, newPassword }),
+    })
+  }
+
+  async getPasswordExpiration(username) {
+    return this.request(`/password/expiration/${username}`)
+  }
+
+  async setPasswordExpiration(username, expirationDays) {
+    return this.request(`/password/expiration/${username}`, {
+      method: 'POST',
+      body: JSON.stringify({ expirationDays }),
+    })
+  }
+
+  // Mail config endpoints
+  async getMailConfig() {
+    return this.request('/mail/config')
+  }
+
+  async saveMailConfig(config) {
+    return this.request('/mail/config', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    })
+  }
+
+  async testMailConfig() {
+    return this.request('/mail/test', {
+      method: 'POST',
+    })
   }
 }
 

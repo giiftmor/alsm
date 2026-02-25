@@ -19,6 +19,7 @@ import { logsRouter } from './routes/logs.js'
 import { passwordRouter } from './routes/password.js'
 import { auditRouter } from './routes/audit.js'
 import { testRouter } from './routes/test.js'
+import { mailRouter } from './routes/mail.js'
 import { setupWebSocket } from './services/websocket.js'
 import { addLogToCache } from './services/logCache.js'
 import { startSyncService, stopSyncService } from './services/syncService.js'
@@ -75,6 +76,7 @@ app.use('/api/logs', logsRouter)
 app.use('/api/password', passwordRouter)
 app.use('/api/audit', auditRouter)
 app.use('/api/test', testRouter)
+app.use('/api/mail', mailRouter)
 
 
 // WebSocket setup

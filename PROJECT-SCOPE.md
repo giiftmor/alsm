@@ -1,10 +1,11 @@
 # Authentik LDAP Sync Management UI - Project Scope
 
 ## Document Version
-- **Version**: 1.0.0
-- **Date**: February 16, 2026
+- **Version**: 2.0.0
+- **Date**: February 25, 2026
 - **Author**: System Documentation
 - **Project Name**: Authentik LDAP Sync Management UI (ALSM-UI)
+- **Status**: Production - Phase 2 Complete
 
 ---
 
@@ -351,8 +352,14 @@ ldap-sync  | 2026-02-16T16:46:29.718Z [error]: Failed to create LDAP user
 - Troubleshooting guide
 - Video tutorials
 
+### Out of Scope (Completed in Phase 2)
+✅ **Password synchronization** - IMPLEMENTED
+   - Password sync to LDAP + Authentik
+   - Self-service password change
+   - Password expiration policies
+   - Password history via audit logs
+
 ### Out of Scope (Future Enhancements)
-❌ Password synchronization (security complexity)
 ❌ Multi-tenant support
 ❌ LDAP schema designer
 ❌ Advanced RBAC with custom attributes
@@ -395,17 +402,16 @@ Optional (for development):
 #### Network Requirements
 ```yaml
 Ports Required:
-  - 3001: React UI (HTTP)
-  - 3002: Sync Service Health (HTTP)
-  - 3003: Management API (HTTP + WebSocket)
+  - 3331: React UI (HTTP)
+  - 3333: Backend API (HTTP + WebSocket)
   - 9000: Authentik (HTTP)
   - 389: LDAP (TCP)
   
 Firewall Rules:
   - Allow: Docker network → LDAP (389)
   - Allow: Docker network → Authentik (9000)
-  - Allow: Management UI → Management API (3003)
-  - Allow: Users → UI (3001)
+  - Allow: Management UI → Backend API (3333)
+  - Allow: Users → Frontend (3331)
 ```
 
 ### Access Requirements
@@ -948,19 +954,20 @@ authentik-ldap-sync-ui/
 ```yaml
 Frontend:
   Framework: React 18.2
-  Build Tool: Vite 5.0
+  Build Tool: Vite 7.0
   UI Library: shadcn/ui + Tailwind CSS
   State: Zustand 4.4
   Data Fetching: React Query 5.0
   Router: React Router 6.20
   Charts: Recharts 2.10
   WebSocket: socket.io-client 4.6
+  Notifications: react-hot-toast
 
 Backend:
-  Runtime: Node.js 18 LTS
+  Runtime: Node.js 25+
   Framework: Express 4.18
-  Database: better-sqlite3 9.2
-  LDAP: ldapjs 3.0
+  Database: PostgreSQL (via node-postgres)
+  LDAP: ldapts (modern LDAP client)
   WebSocket: socket.io 4.6
   Logging: winston 3.11
   Validation: zod 3.22
@@ -969,8 +976,8 @@ DevOps:
   Container: Docker 24.0
   Orchestration: Docker Compose 2.0
   CI/CD: GitHub Actions
-  Monitoring: Prometheus + Grafana (optional)
-  
+  Database: PostgreSQL 15+
+   
 Testing:
   Unit: Vitest 1.0
   E2E: Playwright 1.40
@@ -981,13 +988,13 @@ Testing:
 
 ```bash
 # Frontend (.env)
-VITE_API_URL=http://localhost:3003
-VITE_WS_URL=ws://localhost:3003
+VITE_API_URL=http://localhost:3333
+VITE_WS_URL=ws://localhost:3333
 VITE_APP_NAME="Authentik LDAP Sync Manager"
 
 # Backend (.env)
 NODE_ENV=development
-PORT=3003
+PORT=3333
 AUTHENTIK_URL=http://localhost:9000
 AUTHENTIK_TOKEN=your_api_token_here
 LDAP_HOST=172.17.0.1
@@ -995,10 +1002,8 @@ LDAP_PORT=389
 LDAP_BIND_DN=cn=Directory Manager,dc=spectres,dc=co,dc=za
 LDAP_BIND_PASSWORD=your_password_here
 LDAP_BASE_DN=dc=spectres,dc=co,dc=za
-DB_PATH=./data/alsm.db
+DATABASE_URL=postgresql://user:pass@localhost:5432/alsm
 LOG_LEVEL=info
-JWT_SECRET=your_jwt_secret_here
-SESSION_SECRET=your_session_secret_here
 ```
 
 ### Database Schema
@@ -1065,21 +1070,45 @@ CREATE TABLE users (
 
 ---
 
+## Optional Improvements
+
+These features are **not required** for core functionality but can enhance the system. See [IMPLEMENTATION-STATUS.md](./IMPLEMENTATION-STATUS.md#optional-improvements) for the complete list.
+
+### Priority Additions
+1. **Keyboard Shortcuts** - Press `/` to focus search, `Esc` to close modals
+2. **Role-Based Access Control** - Admin/Reviewer/Viewer roles
+3. **Multi-Language Support** - i18n for internationalization
+4. **Export Functionality** - CSV/JSON export for data
+5. **Form Validation** - react-hook-form + zod
+
+### Future Considerations
+- Version control and rollback
+- Conflict resolution UI  
+- MFA integration
+- Audit log retention policies
+- LDAP group hierarchy visualization
+- Calendar-based sync scheduling
+
+---
+
 ## Next Steps
 
-1. **Review and Approve**: Stakeholder sign-off on scope
-2. **Environment Setup**: Prepare development environment
-3. **Kickoff Meeting**: Align team on phases and timeline
-4. **Begin Phase 1**: Start with foundation work
-5. **Weekly Check-ins**: Track progress and adjust as needed
+1. **Phase 2 Complete** - All core features implemented
+2. **Production Deployment** - Deploy to production environment
+3. **User Training** - Train administrators on new features
+4. **Monitoring Setup** - Configure alerts and dashboards
+5. **Gather Feedback** - Collect user feedback for Phase 3
 
 ---
 
 **Document Control**
-- Next Review: February 23, 2026
-- Review Frequency: Weekly during active development
+- Version: 2.0.0 (February 25, 2026)
+- Previous Version: 1.0.0 (February 16, 2026)
+- Next Review: March 1, 2026
+- Review Frequency: Monthly
 - Owner: Development Team
 - Approvers: Technical Lead, Product Owner
+- Status: **Production** - Phase 2 Complete
 
 ---
 

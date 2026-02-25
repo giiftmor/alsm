@@ -2,6 +2,7 @@ import express from 'express'
 import { authentikClient } from '../services/authentikClient.js'
 import { ldapClient } from '../services/ldapClient.js'
 import { logger } from '../utils/logger.js'
+import { getAuditLogs } from '../services/auditService.js'
 
 export const usersRouter = express.Router()
 
@@ -142,6 +143,87 @@ usersRouter.post('/:id/test-mapping', async (req, res) => {
     })
   } catch (error) {
     logger.error('Error testing mapping:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+usersRouter.get('/:username/detail', async (req, res) => {
+  try {
+    const { username } = req.params
+    
+    // Get Authentik user
+    const aUser = await authentikClient.getUserByUsername(username)
+    
+    // Get LDAP user
+    const lUser = await ldapClient.getUser(username)
+    
+    // Get password expiration
+    const passwordExpiration = await ldapClient.getPasswordExpiration(username)
+    
+    // Get password history from audit logs
+    const passwordHistory = await getAuditLogs({
+      action: 'password_synced',
+      entity_id: username,
+      limit: 5,
+    })
+    
+    // Get user groups from LDAP
+    let groups = []
+    if (lUser?.memberOf) {
+      groups = lUser.memberOf.map(g => {
+        const cn = g.split(',')[0].replace('cn=', '')
+        return cn
+      })
+    }
+    
+    // Get all changes for this user
+    const userChanges = await getAuditLogs({
+      entity_id: username,
+      limit: 10,
+    })
+    
+    res.json({
+      username,
+      authentik: aUser ? {
+        pk: aUser.pk,
+        email: aUser.email,
+        name: aUser.name,
+        is_active: aUser.is_active,
+        last_login: aUser.last_login,
+        password_change_date: aUser.password_change_date,
+      } : null,
+      ldap: lUser ? {
+        uid: lUser.uid,
+        mail: lUser.mail,
+        cn: lUser.cn,
+        sn: lUser.sn,
+        dn: lUser.dn,
+        memberOf: groups,
+      } : null,
+      password: {
+        expiration: passwordExpiration,
+        history: passwordHistory.map(h => ({
+          timestamp: h.timestamp,
+          success: h.success,
+          ldap: h.changes?.ldap,
+          authentik: h.changes?.authentik,
+        })),
+      },
+      syncStatus: {
+        inAuthentik: !!aUser,
+        inLDAP: !!lUser,
+        synced: !!(aUser && lUser),
+      },
+      recentChanges: userChanges.map(h => ({
+        timestamp: h.timestamp,
+        action: h.action,
+        actor: h.actor,
+        source: h.source,
+        success: h.success,
+      })),
+    })
+  } catch (error) {
+    logger.error('Error getting user detail:', error)
     res.status(500).json({ error: error.message })
   }
 })

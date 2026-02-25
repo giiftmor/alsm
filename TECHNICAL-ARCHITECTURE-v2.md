@@ -66,12 +66,14 @@
 │  │         React 18 SPA (Vite + JavaScript)                  │  │
 │  │                                                            │  │
 │  │  Pages:                                                   │  │
-│  │  • Dashboard       • User Browser    • Schema Mapper      │  │
-│  │  • Log Viewer      • Changes (TODO)  • Settings (TODO)    │  │
+│  │  • Dashboard         • User Browser      • Schema Mapper      │  │
+│  │  • Log Viewer        • Changes           • Password Mgmt     │  │
+│  │  • User Detail       • Mail Settings    • Self Service      │  │
 │  │                                                            │  │
 │  │  State: Zustand                                           │  │
 │  │  Data: React Query + WebSocket                            │  │
 │  │  UI: Tailwind CSS + shadcn/ui                             │  │
+│  │  Features: Toasts, Skeletons, Debounced Search             │  │
 │  └───────────────────────────────────────────────────────────┘  │
 └────────────────────────┬────────────────────────────────────────┘
                          │
@@ -744,31 +746,57 @@ ALSM acts as the central password management hub, syncing passwords to both LDAP
 
 ### Architecture
 ```
-User (Jellyfin/Grafana/etc)
-        ↓ Password Change
-ALSM Backend (/api/password/sync/:username)
-        ↓
-   ┌────┴────┐
-   ▼         ▼
+User (Admin or Self-Service)
+         ↓ Password Change
+ALSM Backend (/api/password/*)
+         ↓
+    ┌────┴────┐
+    ▼         ▼
 LDAP     Authentik
 Server    API
 ```
 
-### API Endpoint
+### API Endpoints
 ```
+# Sync password (Admin)
 POST /api/password/sync/:username
-Body: { "password": "plaintext_password" }
+Body: { "password": "plaintext", "expirationDays": 90 }
+
+# Self-service password change
+POST /api/password/change
+Body: { "username": "user", "currentPassword": "old", "newPassword": "new" }
+
+# Password validation
+POST /api/password/validate
+Body: { "password": "plaintext" }
+
+# Password policy
+GET /api/password/policy
+
+# Password history
+GET /api/password/history/:username
+
+# Password expiration
+GET  /api/password/expiration/:username
+POST /api/password/expiration/:username
+Body: { "expirationDays": 30 }
 ```
 
 ### Features
 - Syncs to LDAP (via ldapts)
 - Syncs to Authentik (via set_password API)
-- Logs all operations to log cache
+- Self-service password change (verifies current password first)
+- Password validation against policy (8+ chars, uppercase, lowercase, number)
+- Password expiration management (LDAP shadowExpire)
+- Password history tracking via audit logs
 - Service account authentication via Bearer token
 
 ### Security
 - Requires Authentik service account with password permissions
-- Service account should be in ALSM Service group (child of Admin)
+- Service account (`ldap_api`) in `password_manager` group (child of Admin)
+- Bearer token authentication via AUTHENTIK_TOKEN env var
+- Current password verification required for self-service changes
+- All password operations logged to audit_log table
 - Rate limiting recommended for production
 
 ---
@@ -853,8 +881,8 @@ Reverse Proxy (Nginx)
 ---
 
 **Document Control**
-- Last Updated: February 19, 2026
-- Next Review: February 26, 2026
+- Last Updated: February 25, 2026
+- Next Review: March 1, 2026
 - Owner: Technical Team
 - Status: Living Document
 

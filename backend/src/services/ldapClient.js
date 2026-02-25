@@ -59,6 +59,79 @@ export class LDAPClient {
     }
   }
 
+  async verifyPassword(username, password) {
+    let tempClient = null
+    
+    try {
+      tempClient = new Client({
+        url: `ldap://${this.host}:${this.port}`,
+        timeout: 5000,
+        connectTimeout: 10000,
+      })
+      
+      const userDN = `uid=${username},ou=people,${this.baseDN}`
+      await tempClient.bind(userDN, password)
+      await tempClient.unbind()
+      
+      logger.info(`Password verified for LDAP user: ${username}`)
+      return true
+    } catch (error) {
+      if (tempClient) {
+        try { await tempClient.unbind() } catch (e) {}
+      }
+      logger.info(`Password verification failed for ${username}: ${error.message}`)
+      return false
+    }
+  }
+
+  async setPasswordExpiration(username, expirationDate) {
+    await this.connect()
+    
+    try {
+      const userDN = `uid=${username},ou=people,${this.baseDN}`
+      
+      const expireTimestamp = expirationDate 
+        ? Math.floor(new Date(expirationDate).getTime() / 1000)
+        : null
+      
+      await this.client.modify(userDN, [
+        new Change({
+          operation: 'replace',
+          modification: new Attribute({
+            type: 'shadowExpire',
+            values: [expireTimestamp.toString()],
+          }),
+        }),
+      ])
+      
+      logger.info(`Password expiration set for ${username}: ${expirationDate}`)
+      return true
+    } catch (error) {
+      logger.error(`Failed to set password expiration for ${username}:`, error.message)
+      return false
+    }
+  }
+
+  async getPasswordExpiration(username) {
+    await this.connect()
+    
+    try {
+      const userDN = `uid=${username},ou=people,${this.baseDN}`
+      const { searchEntries } = await this.client.search(userDN, {
+        attributes: ['shadowExpire'],
+      })
+      
+      if (searchEntries[0]?.shadowExpire) {
+        const expireTimestamp = parseInt(searchEntries[0].shadowExpire)
+        return new Date(expireTimestamp * 1000).toISOString()
+      }
+      return null
+    } catch (error) {
+      logger.error(`Failed to get password expiration for ${username}:`, error.message)
+      return null
+    }
+  }
+
   async search(base, options = {}) {
     await this.connect()
 

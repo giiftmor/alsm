@@ -1,21 +1,28 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search, AlertCircle, CheckCircle2, User, Eye } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Search, AlertCircle, CheckCircle2, User, Eye, UserCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { SkeletonList, SkeletonCard } from '@/components/ui/skeleton'
+import { useDebounce } from '@/hooks/useDebounce'
+import toast from 'react-hot-toast'
 import { apiClient } from '@/services/api'
 
 export function UserBrowser() {
+  const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [selectedUser, setSelectedUser] = useState(null)
+  
+  const debouncedSearch = useDebounce(searchTerm, 300)
 
   const { data: users, isLoading } = useQuery({
-    queryKey: ['users', searchTerm, filterStatus],
+    queryKey: ['users', debouncedSearch, filterStatus],
     queryFn: () => apiClient.getUsers({
-      search: searchTerm,
+      search: debouncedSearch,
       status: filterStatus !== 'all' ? filterStatus : undefined
     }),
     refetchInterval: false,
@@ -106,9 +113,7 @@ export function UserBrowser() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Loading users...
-              </div>
+              <SkeletonList items={8} />
             ) : filteredUsers && filteredUsers.length > 0 ? (
               <div className="space-y-2 max-h-[600px] overflow-y-auto">
                 {filteredUsers.map((user) => (
@@ -238,6 +243,8 @@ function UserListItem({ user, selected, onClick }) {
 }
 
 function UserDetails({ user }) {
+  const navigate = useNavigate()
+  
   const { data: comparison, isLoading } = useQuery({
     queryKey: ['user-comparison', user.id],
     queryFn: () => apiClient.getUserComparison(user.id),
@@ -246,9 +253,9 @@ function UserDetails({ user }) {
   const handleTestMapping = async () => {
     try {
       await apiClient.testUserMapping(user.id)
-      alert('Mapping test successful!')
+      toast.success('Mapping test successful!')
     } catch (error) {
-      alert(`Mapping test failed: ${error.message}`)
+      toast.error(`Mapping test failed: ${error.message}`)
     }
   }
 
@@ -257,10 +264,16 @@ function UserDetails({ user }) {
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>User Details</span>
-          <Button size="sm" variant="outline" onClick={handleTestMapping}>
-            <Eye className="h-4 w-4 mr-2" />
-            Test Mapping
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => navigate(`/users/${user.username}`)}>
+              <UserCircle className="h-4 w-4 mr-2" />
+              Full Profile
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleTestMapping}>
+              <Eye className="h-4 w-4 mr-2" />
+              Test Mapping
+            </Button>
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">

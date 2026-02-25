@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import toast from 'react-hot-toast'
 import { apiClient } from '@/services/api'
 
 export function SchemaMapper() {
@@ -21,7 +22,7 @@ export function SchemaMapper() {
     mutationFn: apiClient.updateFieldMapping.bind(apiClient),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['field-mappings'] })
-      alert('Mappings updated successfully!')
+      toast.success('Mappings updated successfully!')
     },
   })
 
@@ -37,7 +38,7 @@ export function SchemaMapper() {
 
   const handleTest = () => {
     if (!testUserId) {
-      alert('Please enter a user ID to test')
+      toast.error('Please enter a user ID to test')
       return
     }
     testMutation.mutate({ userId: testUserId, mappings })
