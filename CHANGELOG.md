@@ -14,6 +14,9 @@
 - 2026-06-29: Restructure `syncUsersForApp()` to use explicit find-then-act pattern — always query existing user by OIDC sub before acting, skip users with failed resolveRole
 
 ### Fixed
+- 2026-07-05: Fix SSHA hash encoding bug in `ldapClient.js` and `syncService.js` — `salt.toString('binary')` caused bytes > 127 to expand to multi-byte UTF-8, making LDAP password verification always fail 0x31; replaced with `Buffer.concat([Buffer.from(password), salt])` to preserve raw bytes
+- 2026-07-05: Fix audit log at `password.js:198` — `ldap` field now reflects `verifyPassword()` result instead of being hardcoded to `'success'`
+- 2026-07-05: Create migration script `backend/scripts/migrate-ldap-hashes.js` that re-sets all existing broken LDAP hashes with corrected SSHA computation; ran against tammymhlahlo — verification now passes
 - 2026-07-05: Fix new users having no LDAP entry — `POST /api/users/` and `POST /onboarding` now call `ldapClient.createUser()` (add) instead of `ldapClient.updateUser()` (modify on non-existent DN), ensuring LDAP entry exists before any password operation
 - 2026-07-05: Fix sync service `createLDAPUser()` to use SSHA (consistent with ldapClient) instead of bcrypt for `userPassword` attribute
 - 2026-06-29: Fix `POST /api/rbac/sync/:appSlug` - replace non-existent Authentik API endpoints (`/groups/{pk}/users/`, `/users/{pk}/groups/`) with correct group/user detail endpoints using `users_obj`/`groups_obj` embedded fields

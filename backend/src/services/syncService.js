@@ -14,7 +14,7 @@ import { notifyAppSync } from './roleWebhook.js'
 // SSHA password hashing for LDAP userPassword (consistent with ldapClient)
 function hashPasswordLDAP(password) {
   const salt = crypto.randomBytes(8)
-  const hash = crypto.createHash('sha1').update(password + salt.toString('binary')).digest()
+  const hash = crypto.createHash('sha1').update(Buffer.concat([Buffer.from(password), salt])).digest()
   const saltedHash = Buffer.concat([hash, salt])
   const encoded = saltedHash.toString('base64')
   return '{SSHA}' + encoded
