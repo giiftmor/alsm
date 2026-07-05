@@ -99,6 +99,9 @@ export function AppRoleDetail() {
   const [overrideUser, setOverrideUser] = useState(null)
   const [overrideRole, setOverrideRole] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, onConfirm: null, title: '', description: '' })
+  const [selectedUsers, setSelectedUsers] = useState(new Set())
+  const [bulkOverrideDialog, setBulkOverrideDialog] = useState(false)
+  const [bulkOverrideRoleId, setBulkOverrideRoleId] = useState('')
   const [groupSearch, setGroupSearch] = useState('')
   const [bulkGroupSearch, setBulkGroupSearch] = useState('')
   const [bulkSelectedGroups, setBulkSelectedGroups] = useState([])
@@ -173,7 +176,7 @@ export function AppRoleDetail() {
 
   const { data: auditLogs = [], isLoading: auditLoading } = useQuery({
     queryKey: ['rbac-audit', slug],
-    queryFn: () => apiClient.getAuditLogs({ entity_type: slug, limit: 20 }),
+    queryFn: () => apiClient.getAuditLogs({ entity_type: 'rbac_app', entity_id: slug, limit: 20 }),
     enabled: !!slug,
   })
 
@@ -245,6 +248,46 @@ export function AppRoleDetail() {
     onSuccess: () => { toast.success('Role override saved'); setOverrideUser(null); setOverrideRole(''); refetchUsers() },
     onError: (e) => toast.error(e.message),
   })
+
+  const removeUserMutation = useMutation({
+    mutationFn: (sub) => apiClient.deleteRbacUser(slug, sub),
+    onSuccess: () => { toast.success('User removed from app'); refetchUsers() },
+    onError: (e) => toast.error(e.message),
+  })
+
+  const toggleSelectUser = (sub) => {
+    setSelectedUsers(prev => {
+      const next = new Set(prev)
+      if (next.has(sub)) next.delete(sub); else next.add(sub)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedUsers.size === users.length) {
+      setSelectedUsers(new Set())
+    } else {
+      setSelectedUsers(new Set(users.map(u => u.oidc_sub)))
+    }
+  }
+
+  const handleBulkDelete = () => {
+    const count = selectedUsers.size
+    confirmDelete(`Remove ${count} user${count !== 1 ? 's' : ''}`, `Remove ${count} user${count !== 1 ? 's' : ''} from this app?`, () => {
+      Array.from(selectedUsers).forEach(sub => removeUserMutation.mutate(sub))
+      setSelectedUsers(new Set())
+      setDeleteConfirm({ open: false })
+    })
+  }
+
+  const handleBulkOverride = () => {
+    Array.from(selectedUsers).forEach(sub => {
+      overrideMutation.mutate({ sub, role_definition_id: bulkOverrideRoleId ? parseInt(bulkOverrideRoleId) : null })
+    })
+    setBulkOverrideDialog(false)
+    setBulkOverrideRoleId('')
+    setSelectedUsers(new Set())
+  }
 
   const handleCreateRoleSubmit = () => {
     if (!roleName.trim()) { toast.error('Role name is required'); return }
@@ -528,6 +571,21 @@ export function AppRoleDetail() {
               <CardDescription>Users who have authenticated to this app</CardDescription>
             </CardHeader>
             <CardContent>
+              {selectedUsers.size > 0 && !isOgun && (
+                <div className="flex items-center gap-2 mb-3 p-2 bg-accent/10 border border-accent/20 rounded-sm">
+                  <span className="text-sm font-medium">{selectedUsers.size} selected</span>
+                  <div className="flex-1" />
+                  <Button size="sm" variant="ghost" onClick={handleBulkDelete} className="text-destructive hover:text-destructive">
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setBulkOverrideDialog(true); setBulkOverrideRoleId('') }}>
+                    Override Role
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedUsers(new Set())}>
+                    Clear
+                  </Button>
+                </div>
+              )}
               {usersLoading ? <LoadingSpinner /> : users.length === 0 ? (
                 <EmptyState message="No users have authenticated to this app yet" />
               ) : (
@@ -535,6 +593,14 @@ export function AppRoleDetail() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-muted/50">
+                        {!isOgun && (
+                          <th className="px-4 py-2.5 w-10">
+                            <Checkbox
+                              checked={users.length > 0 && selectedUsers.size === users.length}
+                              onCheckedChange={toggleSelectAll}
+                            />
+                          </th>
+                        )}
                         <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Email / Sub</th>
                         <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Role</th>
                         <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Last Auth</th>
@@ -545,7 +611,15 @@ export function AppRoleDetail() {
                     </thead>
                     <tbody>
                       {users.map(u => (
-                        <tr key={u.oidc_sub} className="border-t border-border hover:bg-muted/30">
+                        <tr key={u.oidc_sub} className={`border-t border-border hover:bg-muted/30 ${selectedUsers.has(u.oidc_sub) ? 'bg-accent/5' : ''}`}>
+                          {!isOgun && (
+                            <td className="px-4 py-2.5">
+                              <Checkbox
+                                checked={selectedUsers.has(u.oidc_sub)}
+                                onCheckedChange={() => toggleSelectUser(u.oidc_sub)}
+                              />
+                            </td>
+                          )}
                           <td className="px-4 py-2.5">{u.email || u.oidc_sub}</td>
                           <td className="px-4 py-2.5">
                             <Badge variant="default">{u.role_name || 'viewer'}</Badge>
@@ -558,7 +632,10 @@ export function AppRoleDetail() {
                           </td>
                           {!isOgun && (
                             <td className="px-4 py-2.5 text-right">
-                              <button onClick={() => { setOverrideUser(u); setOverrideRole('') }} className="text-xs text-accent hover:text-accent-hover">Override Role</button>
+                              <button onClick={() => { setOverrideUser(u); setOverrideRole('') }} className="text-xs text-accent hover:text-accent-hover mr-3">Override Role</button>
+                              <button onClick={() => confirmDelete('Remove User', `Remove ${u.email || u.oidc_sub} from this app?`, () => { removeUserMutation.mutate(u.oidc_sub); setDeleteConfirm({ open: false }) })} className="text-muted-foreground hover:text-destructive" title="Remove from app">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                             </td>
                           )}
                         </tr>
@@ -910,6 +987,33 @@ export function AppRoleDetail() {
               <Button variant="ghost" onClick={() => { setOverrideUser(null); setOverrideRole('') }}>Cancel</Button>
               <Button onClick={() => overrideMutation.mutate({ sub: overrideUser.oidc_sub, role_definition_id: overrideRole ? parseInt(overrideRole) : null })} disabled={overrideMutation.isPending}>
                 {overrideMutation.isPending ? 'Saving...' : 'Save Override'}
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkOverrideDialog} onClose={() => { setBulkOverrideDialog(false); setBulkOverrideRoleId('') }}>
+        <DialogHeader>
+          <DialogTitle>Override Role for {selectedUsers.size} user{selectedUsers.size !== 1 ? 's' : ''}</DialogTitle>
+          <DialogDescription>Assign a role override to all selected users</DialogDescription>
+        </DialogHeader>
+        <DialogContent>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-xs text-muted-foreground">New Role</label>
+              <Select value={bulkOverrideRoleId} onValueChange={setBulkOverrideRoleId}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select role..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Clear override</SelectItem>
+                  {roles.map(r => (<SelectItem key={r.id} value={String(r.id)}>{r.display_name || r.name}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => { setBulkOverrideDialog(false); setBulkOverrideRoleId('') }}>Cancel</Button>
+              <Button onClick={handleBulkOverride} disabled={overrideMutation.isPending}>
+                {overrideMutation.isPending ? 'Saving...' : `Apply to ${selectedUsers.size} user${selectedUsers.size !== 1 ? 's' : ''}`}
               </Button>
             </DialogFooter>
           </div>
