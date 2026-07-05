@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- 2026-07-05: Add `ldapClient.createUser()` — creates LDAP entry via `client.add()` with SSHA temp password, uidNumber auto-assignment, and all required posixAccount attributes
 - 2026-06-29: Add DELETE endpoint for app_users removal (`DELETE /api/rbac/users/:appSlug/:sub`)
 - 2026-06-29: Add "Remove" button in RBAC app Users table with confirmation dialog
 - 2026-06-29: Add `deleteRbacUser()` to frontend API client
@@ -13,6 +14,8 @@
 - 2026-06-29: Restructure `syncUsersForApp()` to use explicit find-then-act pattern — always query existing user by OIDC sub before acting, skip users with failed resolveRole
 
 ### Fixed
+- 2026-07-05: Fix new users having no LDAP entry — `POST /api/users/` and `POST /onboarding` now call `ldapClient.createUser()` (add) instead of `ldapClient.updateUser()` (modify on non-existent DN), ensuring LDAP entry exists before any password operation
+- 2026-07-05: Fix sync service `createLDAPUser()` to use SSHA (consistent with ldapClient) instead of bcrypt for `userPassword` attribute
 - 2026-06-29: Fix `POST /api/rbac/sync/:appSlug` - replace non-existent Authentik API endpoints (`/groups/{pk}/users/`, `/users/{pk}/groups/`) with correct group/user detail endpoints using `users_obj`/`groups_obj` embedded fields
 - 2026-06-29: Fix same Authentik API pattern in `getUserOgunRole()` for consistency
 - 2026-06-29: Remove test users `test@example.com` and `test@test.com` from app_users across all apps
